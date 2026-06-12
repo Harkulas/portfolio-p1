@@ -1,0 +1,48 @@
+// Usage:  setNepsePrice()          → LTP + 3% (floored to integer)
+//         setNepsePrice(5)         → LTP + 5%
+//         setNepsePrice(0, 1302)   → set a fixed integer price directly
+
+function setNepsePrice(pct = 3, fixedPrice = null) {
+
+  // ── 1. Read LTP from the DOM ─────────────────────────────────────────
+  let ltp = null;
+
+  for (const el of document.querySelectorAll('.order__form--prodtype')) {
+    const label = el.querySelector('.order__form--label');
+    if (label?.textContent.trim() === 'LTP') {
+      for (const node of el.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const val = parseFloat(node.textContent.replace(/[^0-9.]/g, ''));
+          if (!isNaN(val) && val > 0) { ltp = val; break; }
+        }
+      }
+    }
+    if (ltp) break;
+  }
+
+  if (!ltp) { console.error('[NEPSE] LTP not found. Are you on the order page?'); return; }
+
+  // ── 2. Compute target price (floored integer) ────────────────────────
+  const target = fixedPrice ?? Math.floor(ltp * (1 + pct / 100));
+
+  // ── 3. Fill the Angular price input ──────────────────────────────────
+  const input = document.querySelector("input[formcontrolname='price']");
+  if (!input) { console.error('[NEPSE] Price input not found.'); return; }
+
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype, 'value'
+  )?.set;
+
+  setter ? setter.call(input, String(target)) : (input.value = String(target));
+
+  ['input', 'change', 'blur'].forEach(e =>
+    input.dispatchEvent(new Event(e, { bubbles: true }))
+  );
+
+  console.log(`[NEPSE] LTP: ${ltp}  →  Price set: ${target} (floor of ${pct}% above)`);
+  return { ltp, target };
+}
+
+// ── Auto-update every 5 seconds ──────────────────────────────────────
+// const _t = setInterval(() => setNepsePrice(3), 5000);
+// clearInterval(_t)  ← to stop
